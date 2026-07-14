@@ -1,0 +1,23 @@
+# Use official Node.js 18 image as base
+FROM node:18-alpine
+
+# Set working directory inside container
+WORKDIR /usr/src/app
+
+# Copy package.json and package-lock.json first (for caching)
+COPY package*.json ./
+
+# Install dependencies
+RUN npm install --production
+
+# Copy the rest of the application code
+COPY . .
+
+# Build the app (if you have a build step)
+RUN npm run build
+
+# Expose the port your app runs on
+EXPOSE 3000
+
+# Start the application
+CMD ["npm", "start"]
