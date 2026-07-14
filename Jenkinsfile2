@@ -1,0 +1,67 @@
+pipeline {
+    agent any
+    
+    options {
+        timeout(time: 1, unit: "MINUTES")
+    }
+    
+    environment {
+        image= 'first'
+        user= 'rajendraprasadj'
+        tagname= 'v1'
+    }
+    
+    parameters {
+        choice (
+            name: 'Env',
+            choices: ['dev','qa','prod'],
+            description: 'Please select the ENV'
+            )
+        string (
+            name: 'Version',
+            defaultValue: '1.0',
+            description: 'Please select Version'
+            )
+        booleanParam (
+            name: 'Deploy',
+            defaultValue: true,
+            description: 'Deploy Application?'
+            )
+    }
+    stages {
+        stage('Check Out') {
+            steps {
+                git branch: 'main',
+                    url: 'https://github.com/rajendraprasad-hub/jenkins-git.git'
+            }
+        }
+        stage('Build') {
+            steps {
+                sh 'npm install'  
+            }
+        }
+        stage('Test') {
+            steps {
+                sh 'npm test'
+            }
+        }
+        stage('Docker_Image_Creation') {
+            steps {
+                sh "docker build -t ${user}/${image}:${tagname} ."
+            }
+        }
+        stage('Docker_push') {
+            steps {
+                withCredentials([
+                    usernamePassword (
+                        credentialsId: '3448ae65-21a0-45d9-a8e4-2aea003d28f2',
+                        usernameVariable: 'Docker_User',
+                        passwordVariable: 'Docker_Pass')
+                        ]) {
+                    sh "docker login -u ${Docker_User} -p ${Docker_Pass}"
+                    sh "docker push ${user}/${image}:${tagname}"
+                        }
+            }
+        }
+    }
+}
