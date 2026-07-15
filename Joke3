@@ -1,0 +1,114 @@
+pipeline {
+    agent any
+    
+    options {
+        timeout(time: 1, unit: 'MINUTES')
+        timestamps()
+        disableConcurrentBuilds()
+    }
+    
+    tools {
+        nodejs 'Nodejs_18'
+    }
+    
+    environment {
+        user = 'rajendraprasadj'
+        image = 'second'
+        tagname = 'v1'
+    }
+    parameters {
+        choice (
+            name: 'ENV',
+            choices: ['dev','qa','prod'],
+            description: 'Please select the ENV'
+            )
+        string (
+            name: 'Version',
+            defaultValue: 'v1',
+            description: 'Please check teh version'
+            )
+        booleanParam (
+            name: 'Deploy',
+            defaultValue: true,
+            description: 'Deploy Application?'
+            )
+    }
+    stages {
+        stage('check out') {
+            steps {
+                git branch: 'main',
+                    url: 'https://github.com/rajendraprasad-hub/jenkins-git.git'
+            }
+        }
+        stage('Build') {
+            steps {
+                sh 'npm install'
+            }
+        }
+        stage('Test') {
+            steps {
+                sh 'npm test'
+            }
+        }
+        stage('Docker_Image_dev') {
+            when {
+                allOf {
+                    expression { params.Deploy }
+                    expression { params.ENV == "dev" }
+                    expression { params.Version == "v2" }
+                }
+            }
+            steps {
+                sh "docker build --label env=dev -t ${user}/${image}:${tagname} ."
+            }
+        }
+        stage('Docker_Image_qa') {
+            when {
+                allOf {
+                    expression { params.Deploy }
+                    expression { params.ENV == "qa" }
+                    expression { params.Version == "v2" }
+                }
+            }
+            steps {
+                sh "docker build --label env=qa -t ${user}/${image}:${tagname} ."
+            }
+        }
+        stage('Docker_Image_prod') {
+            when {
+                allOf {
+                    expression { params.Deploy }
+                    expression { params.ENV == "prod" }
+                    expression { params.Version == "v2" }
+                }
+            }
+            steps {
+                sh "docker build --label env=prod -t ${user}/${image}:${tagname} ."
+            }
+        }
+        stage('Docker_push') {
+            steps {
+                withCredentials ([
+                    usernamePassword (
+                        credentialsId: 'b5ce1c59-c791-4448-8a91-56b256ee7a8d',
+                        usernameVariable: 'Docker',
+                        passwordVariable: 'Pass' )
+                        ]) {
+                    sh "docker login -u ${Docker} -p ${Pass}"
+                    sh "docker push ${user}/${image}:${tagname}"
+                        }
+            }
+        }
+        
+        stage(k8s_Deploy) {
+            steps {
+               withCredentials([file(credentialsId: 'c854b1a8-5e97-492a-bbc7-1e9fbbbbd634', variable: 'KUBECONFIG')]) {
+                script {
+                    sh "kubectl --kubeconfig=$KUBECONFIG run app-${params.ENV} -n ${params.ENV} --image=${user}/${image}:${tagname}"
+                    }
+                }
+            }
+        }
+            
+        }
+    }
